@@ -5,6 +5,18 @@
 
 //row major ideology
 
+struct _Matrix{
+	double* matrix;
+	int m;
+	int n;
+}matrix;
+
+struct _block_Matrix{
+	matrix* block_matrix;
+	int m;
+	int n;
+}block_matrix;
+
 void print_matrix(int m, int n, double* a, int lda); 
 void qr_decomp(int m, int n, double* a, double* r);
 void decomp1d(n, N, block_index);
@@ -24,7 +36,6 @@ int main(){
 	qr_decomp(m, n, a, r);
 
 		
-
     return 0; 
 }
 
@@ -58,39 +69,78 @@ void qr_decomp(int m, int n, double* a, double* r){
 }
 
 
-void decomp1d(int n, int N, int block_index, int* s, int* e){
+void decomp1d(int n, int N, int block_index, int s, int e){
     int remainder = n % N;
     int base = n / N;
 
     if (block_index < remainder){
-        *s =  block_index * (base+1);
-        *e = *s + base+1;
+        s =  block_index * (base+1);
+        e = s + base+1;
     } else {
-        *s = (remainder * (base+1)) + ((fmax(block_index-remainder, 0)) * base);
-        *e = *s + base;
+        s = (remainder * (base+1)) + ((fmax(block_index-remainder, 0)) * base);
+        e = s + base;
     }
 }
 
-//double* block_a = malloc(M * N * sizeof(double*));
-void decomp_matrix(int m, int n, double* a, int M, int N, double* block_a){
+void decomp_matrix(matrix* a, int M, int N, block_matrix* block_a){
+	int m = a.m;
+	int n = a.n;	
+	double* a = a.matrix;
+
+	block_a.m = M;
+	block_a.n = N;
+
+	int s1;
+	int e1;
+	int s2;
+	int e2;
+
+	for (int i=0; i<M; i++){
+        decomp1d(a.m, M, i, s1, e1);
+		for (int j=0; j<N; j++){
+            decomp1d(a.n, N, j, s2, e2);
+           
+			matrix block;
+			block.m = e1 - s1;
+			block.n = e2 - s2;
+			
+			block.matrix = malloc(block.m * block.n * sizeof(double)); 
+			// gotta free this memory yourself after 
+			// you're finished with the block matrix
+			for (int k=0; k < block.m; k++){
+				for (int l=0; l < block.n; l++){
+                    block.matrix[k*block.n + l] = a.matrix[(s1+k)*a.n + s2+l];
+				}
+			}	
+
+			block_a.block_matrix[i*n + j] = &block
+
+		}
+	}
+}
+
+
+
+//void comp_matrix(int m, int n, double* a, int M, int N, double* a){
+void comp_matrix(block_matrix block_a, matrix a){
+    int row_step = 0;
+    int col_step = 0;
+    int sub_rows = 0;
+    int sub_cols = 0;
     
 	for (int i=0; i<M; i++){
-		int* s1;
-		int* e1;
-        decomp1d(m, M, i, s1, e1);
-
 		for (int j=0; j<N; j++){
-			int* s2;
-			int* e2;
-            decomp1d(n, N, j, s2, e2);
             
-			&block_A[i*n + j] = malloc((e1 - s1)*(e2 - s2) * sizof(double*); 
-			for (int a=0; a<(*e1 - *s1); a++){
-				for (int b=0; b<(*e2 - *s2); b++){
-                    block_A[i][j][a][b] = A[s1 + a][s2 + b];
-				}		
-			}
-		}
+			sub_rows = block_a.block_matrix[i*N + j].m;
+			sub_cols = block_a.block_matrix[i*N + j].n;
+
+        	for (int k=0; k<sub_rows; k++){
+        		for (int l=0; l<sub_rows; l++){
+                    a.matrix[(row_step + k)*n + (col_step + l)] = block[k*sub_cols + l];
+                    
+            col_step += sub_cols;
+        row_step += sub_rows;
+        col_step = 0;
 	}
 }
 
