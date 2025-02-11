@@ -23,6 +23,7 @@ void qr_decomp(int m, int n, double* a, double* q, double* r);
 void decomp1d(int n, int N, int block_index, int s, int e);
 
 void decomp_matrix(matrix* a, block_matrix* block_a);
+void free_block_matrix(block_matrix* block_a);
 void comp_matrix(block_matrix* block_a, matrix* a);
 void tsqr(matrix* a, matrix* q, matrix* r);
 
@@ -135,32 +136,51 @@ void decomp_matrix(matrix* a, block_matrix* block_a){
 	int e1;
 	int s2;
 	int e2;
-
     
+    // for each desired block
 	for (int i=0; i < (block_a->m); i++){
-        decomp1d(a.m, block_a->m, i, s1, e1);
+        decomp1d(a->m, block_a->m, i, s1, e1);
 		for (int j=0; j < (block_a->n); j++){
-            decomp1d(a.n, block_a->n , j, s2, e2);
+            decomp1d(a->n, block_a->n , j, s2, e2);
            
+            // make a block
 			matrix block;
 			block.m = e1 - s1;
 			block.n = e2 - s2;
-			
 			block.mat = malloc((block.m) * (block.n) * sizeof(double)); 
 			// gotta free this memory yourself after 
 			// you're finished with the block matrix
+            
+            // iterate over each entry of this block and plop in corresponding 
+            // values from the matrix struct a
 			for (int k=0; k < block.m; k++){
 				for (int l=0; l < block.n; l++){
                     (block.mat)[k*(block.n) + l] = (a->mat)[(s1+k)*(a->n) + s2+l];
 				}
 			}	
-
-			(block_a->block_mat)[i*n + j] = &block
+            
+            // assign address of this new martix struct "block" to an 
+            // entry in the new block matrix
+			(block_a->block_mat)[i*(block_a->n) + j] = &block
 		
 		}
 	}
 }
 
+
+/**
+ * @brief Frees allocated memory by the decomp_matrix function. 
+ * 
+ * @param block_a Pointer to a block_matrix struct with assigned shape, (n and m).
+*/
+void free_block_matrix(block_matrix* block_a){
+    // iterate over each entry of block matrix
+	for (int i=0; i<block_a->m; i++){
+		for (int j=0; j<block_a->n; j++){
+            
+            // picks out address of array within matrix struct, within block matrix to free
+			free(&( ( (block_a->block_mat)[i*(block_a->n) + j] )->mat ) );
+}
 
 
 //void comp_matrix(int m, int n, double* a, int M, int N, double* a){
@@ -177,18 +197,19 @@ void comp_matrix(block_matrix* block_a, matrix* a){
     int sub_rows = 0;
     int sub_cols = 0;
     
+     
 	for (int i=0; i<block_a->m; i++){
 		for (int j=0; j<block_a->n; j++){
             
-			sub_rows = (block_a.block_mat[i*N + j])->m;
-			sub_cols = (block_a.block_mat[i*N + j])->n;
+			sub_rows = ((block_a->block_mat)[i*(block_a->n) + j])->m;
+			sub_cols = ((block_a->block_mat)[i*(block_a->n) + j])->n;
 
         	for (int k=0; k<sub_rows; k++){
         		for (int l=0; l<sub_rows; l++){
                     a.mat[(row_step + k)*n + (col_step + l)] = block_a[k*sub_cols + l];
 
-			// maybe
-			free(&(block_a.block_mat[i*N + j]));
+            // picks out address of array within matrix struct, within block matrix to free
+			free(&( ( (block_a->block_mat)[i*(block_a->n) + j] )->mat ) );
 
             col_step += sub_cols;
         row_step += sub_rows;
@@ -206,23 +227,32 @@ void comp_matrix(block_matrix* block_a, matrix* a){
  * @param r Pointer to an empty matrix struct
 */
 void tsqr(matrix* a, matrix* q, matrix* r){
-	for (int i=0; i<m; i++){
+    int max_block_rows = 4;
+	int rows_num = max_block_rows;
+
+    // initialises q matrix to be an identity matrix
+	for (int i=0; i<(a->m); i++){
 		q.mat[i*n + i] = 1;
 	}
-
-	int rows_num = 4;
-	block_matrix* A;
-    A->m = rows_num;
-    A->n = 1;
-	decomp_matrix(a, A);
+    
+    
+    // initialise block matrix R for a to be decomposed into 
+	block_matrix* R;
+    R->m = rows_num;
+    R->n = 1;
+	decomp_matrix(a, R);
 	
+    // main iteration loop
 	for (int iter=0; iter<3; iter++){
-		
+        
+        // init temp matrices for computations in current iteration		
+        // init Q		
 		block_matrix* Q_temp;
         Q_temp->m = rows_num;
         Q_temp->n = rows_num;
 		Q_temp->block_mat = malloc(rows_num * rows_num * sizeof(matrix*));
-		
+        
+        // init R		
 		block_matrix* R_temp;
         R_temp->m = rows_num;
         R_temp->n = 1;
@@ -233,8 +263,8 @@ void tsqr(matrix* a, matrix* q, matrix* r){
             for (int j=0; j<rows_num; j++){
                 // (array of matrix structs)[of matrix struct]
                 // (block matrix)[index of matrix]->(array of double representing matrix)  =  calloc size m_i*n array of doubles representing matrix
-                ((Q_temp->block_mat)[i*(Q_temp->n) + j])->mat = calloc(((A->block_mat)->m) * (a->n), sizeof(double*));
-                ((Q_temp->block_mat)[i*(Q_temp->n) + j])->m   = (A->block_mat)->m;
+                ((Q_temp->block_mat)[i*(Q_temp->n) + j])->mat = calloc(((R->block_mat)->m) * (a->n), sizeof(double*));
+                ((Q_temp->block_mat)[i*(Q_temp->n) + j])->m   = (R->block_mat)->m;
                 ((Q_temp->block_mat)[i*(Q_temp->n) + j])->n   = a->n;
             }
         } 
@@ -242,33 +272,53 @@ void tsqr(matrix* a, matrix* q, matrix* r){
         // allocate memory for R_temp
         for (int i=0; i<rows_num; i++){
             ((R_temp->block_mat)[i])->mat = calloc((a->n) * (a->n), sizeof(double*));
-            ((R_temp->block_mat)[i])->m   = (A->block_mat)->m;
+            ((R_temp->block_mat)[i])->m   = (R->block_mat)->m;
             ((R_temp->block_mat)[i])->n   = a->n;
         }
 		
 		for (int i=0; i<rows_num; i++){
-			qr_decomp(m, n, R->mat,
-                // index the block matrix and pick out the array of doubles representing matrix 
-                ((Q_temp->block_mat)[i*(Q_temp->n) + i])->mat, 
-                ((R_temp->block_mat)[i                ])->mat);
-		} 
+            // index the block matrix and pick out the array of doubles representing matrix 
+            //        m  n  (mat to decomp)
+			qr_decomp(m, n, ((R->block_mat)[i])->mat, ((Q_temp->block_mat)[i*(Q_temp->n) + i])->mat, ((R_temp->block_mat)[i])->mat;
+		    //                                      (          pick out  (i,i) entry in Q_temp   ) (pick out (i,0) entry in block mat)
+		    //                                      (          which would be a matrix           ) ( which is again a matrix         )
+        } 
         
-        matrix* Q_temp_comp;
-        Q_temp_comp->m = a->m;
-        Q_temp_comp->n = a->n;
-        comp_matrix(Q_temp, Q_temp_comp);
+        // matrix needed for computation
+        matrix* Q_temp_matrix;
+        Q_temp_matrix->m = (rows_num == max_block_rows) ? m : rows_num * 2 * (a->n);
+        Q_temp_matrix->n = rows_num * (a->n);
+        comp_matrix(Q_temp, Q_temp_matrix); // makes the block_matrix struct Q_temp into a matrix struct Q_temp_matrix
 	 
-
-        int k = fmin(a->m, a->n);
+        // stuff for matrix mul to follow
+        int k = fmin(a->m, Q_temp_matrix->n);
         int alpha = 1;
         int beta = 0;
         int lda = a->n;
  
- 	    //double* c = calloc(m * n, sizeof(double));
+ 	    double* c = calloc(m * n, sizeof(double));
  	    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
- 	   				q->m, q->n, k, alpha, a, lda,
+ 	   				a->m, Q_temp_matrix->n, k, alpha, q->mat, lda,
  	   				Q_temp_comp->mat, lda, beta,
- 	   				q->mat, lda);
+ 	   				c, lda);
+                    
+	    memcpy(q->mat, c, n*m * sizeof(double));
+    
+        rows_num = rows_num / 2;
+        free_block_mat(R);
+        R->m = rows_num;
+        for (int i=0; i<rows_num; i++){
+            block_mat temp_block;
+            temp_block.
+            
+    
+            (R->block_mat)[]
+
+        }
+        
+        
+                     
+                
         
         
 
