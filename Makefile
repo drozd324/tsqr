@@ -1,13 +1,20 @@
-CC = gcc
-PACKAGES = -lm -lblas -llapacke -llapack
+CC    = gcc
+DEBUG = $(" ") #-Wall -W
+LIBS  = -lm -lblas -llpacke -llpack
 
+all: q2 q3
 
-q2: 
-	$(CC) -o $@ $@.c $(PACKAGES)
+q2: q2.c mat_tools.o tsqr.o
+	$(CC) -o q2.c mat_tools.o tsqr.o $(LIBS) $(DEBUG) 
 
-qr: 
-	$(CC) -o $@ $@.c $(PACKAGES)
+q3: q3.c mat_tools.o tsqr.o
+	$(CC) -o q3.c mat_tools.o tsqr.o $(LIBS) $(DEBUG)
+
+mat_tools.o: mat_tools.c mat_tools.h
+	$(CC) -c mat_tools.c $(LIBS) $(DEBUG)
+
+tsqr.o: tsqr.c tsqr.h mat_tools.c mat_tools.h
+	$(CC) -c tsqr.c $(LIBS) $(DEBUG)
 
 clean:
-	rm qr q2
-
+	rm *.o q2 q3

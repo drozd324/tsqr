@@ -5,6 +5,6 @@
  * @author Patryk Drozd
  */
 
-#include <mat_tools.h>
+#include "mat_tools.h"
 
 void tsqr(matrix* a, matrix* q, matrix* r);

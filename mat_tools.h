@@ -9,7 +9,7 @@
 /**
  * @brief Struct for matrices
 */
-typedef struct _Matrix{
+typedef struct _matrix{
 	double* mat;  // single coigious array of doubles for entries of matrix
 	int m;  // number of rows of matrix
 	int n;  // number of columns of matrix
@@ -18,7 +18,7 @@ typedef struct _Matrix{
 /**
  * @brief Struct for block matrices
 */
-typedef struct _block_Matrix{
+typedef struct _block_matrix{
 	matrix* block_mat;  // single contigious array for pointers to matrix structs
 	int m;  // number of rows of blocks of block matrix
 	int n;  // number of columns of block of block matrix
@@ -27,7 +27,7 @@ typedef struct _block_Matrix{
 
 void print_matrix(int m, int n, double* a, int lda);
 void qr_decomp(int m, int n, double* a, double* q, double* r);
-void mat_mul(matrix* a, matrix* b, matrix* c){
+void mat_mul(matrix* a, matrix* b, matrix* c);
 void decomp1d(int n, int N, int block_index, int s, int e);
 
 void decomp_matrix(matrix* a, block_matrix* block_a);

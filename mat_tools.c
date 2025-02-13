@@ -10,6 +10,8 @@
 #include <math.h>
 #include <lapacke.h>
 #include <cblas.h>
+#include <string.h>
+#include "mat_tools.h"
 
 /**
  * @brief Prints a matrix from a single contigious array
@@ -23,7 +25,7 @@ void print_matrix(int m, int n, double* a, int lda) {
     for (int i=0; i<m; i++) {
         for (int j=0; j<n; j++){
             printf("%2.2f ", a[i*lda + j]);
-		}
+        }
         printf("\n");
     }
 }
@@ -41,24 +43,24 @@ void print_matrix(int m, int n, double* a, int lda) {
  *          from QR = A into.
 */
 void qr_decomp(int m, int n, double* a, double* q, double* r){
-    int     lda = n;
-	double* tau = malloc(fmin(m, n) * sizeof(double));
+    int lda = n;
+    double* tau = malloc(fmin(m, n) * sizeof(double));
 	
-	memcpy(q, a, n*m * sizeof(double));
+    memcpy(q, a, n*m * sizeof(double));
 	
-	// Double precision GEneral QR Factorisation
+    // Double precision GEneral QR Factorisation
     LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, m, n, q, lda, tau); 
 	
-	// write to R to r
+    // write to R to r
     for (int i=0; i<n; i++) {
         for (int j=i; j<n; j++){
             r[i*n + j] = q[i*n + j];
-		}
-	}
+        }
+    }
 
-	int k = fmin(m, n);
-	// Double precision ORthogonal Generate? QR Factorisation
-   	LAPACKE_dorgqr(LAPACK_ROW_MAJOR, m, n, k, q, lda, tau); 
+    int k = fmin(m, n);
+    // Double precision ORthogonal Generate? QR Factorisation
+    LAPACKE_dorgqr(LAPACK_ROW_MAJOR, m, n, k, q, lda, tau); 
 }
 
 
@@ -75,10 +77,10 @@ void mat_mul(matrix* a, matrix* b, matrix* c){
     int alpha = 1;
     int beta = 0;
  
- 	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
- 				a->m, b->n, a->n, alpha, a->mat, a->n,
- 			    b->mat, b->n, 
-                beta, c->mat, c->n);
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+        a->m, b->n, a->n, alpha, a->mat, a->n,
+        b->mat, b->n, 
+        beta, c->mat, c->n);
 
     c->m = a->m;
     c->n = a->n;
@@ -124,33 +126,33 @@ void decomp1d(int n, int N, int block_index, int s, int e){
  * @param block_a Pointer to a block_matrix struct with assigned shape, (n and m).
 */
 void decomp_matrix(matrix* a, block_matrix* block_a){
-	int s1;
-	int e1;
-	int s2;
-	int e2;
+    int s1;
+    int e1;
+    int s2;
+    int e2;
     
     // for each desired block
-	for (int i=0; i < (block_a->m); i++){
+    for (int i=0; i < (block_a->m); i++){
         decomp1d(a->m, block_a->m, i, s1, e1);
-		for (int j=0; j < (block_a->n); j++){
+        for (int j=0; j < (block_a->n); j++){
             decomp1d(a->n, block_a->n , j, s2, e2);
 
-            ((block_a->block_mat)[i*(block_a->n) + j])->m   = e1 - s1; 
-            ((block_a->block_mat)[i*(block_a->n) + j])->n   = e2 - s2; 
-            ((block_a->block_mat)[i*(block_a->n) + j])->mat = malloc((e1 - s1) * (e2 - s2) * sizeof(double)); 
-			// gotta free this memory yourself after 
-			// you're finished with the block matrix
+            ((block_a->block_mat)[i*(block_a->n) + j]).m   = e1 - s1; 
+            ((block_a->block_mat)[i*(block_a->n) + j]).n   = e2 - s2; 
+            ((block_a->block_mat)[i*(block_a->n) + j]).mat = malloc((e1 - s1) * (e2 - s2) * sizeof(double));
+            // gotta free this memory yourself after 
+            // you're finished with the block matrix
             
             // iterate over each entry of this block and plop in corresponding 
             // values from the matrix struct a
-			for (int k=0; k < block.m; k++){
-				for (int l=0; l < block.n; l++){
+            for (int k=0; k < e1-s1; k++){
+                for (int l=0; l < e2-s2; l++){
                     //(block.mat)[k*(block.n) + l] = (a->mat)[(s1+k)*(a->n) + s2+l];
-                    (block_a->block_mat)[i*(block_a->n) + j]->mat = (a->mat)[(s1+k)*(a->n) + s2+l]; 
-				}
-			}	
-		}
-	}
+                    (block_a->block_mat)[i*(block_a->n) + j].mat = &((a->mat)[(s1+k)*(a->n) + s2+l]); 
+                }
+            }
+        }
+    }
 }
 
 
@@ -161,11 +163,12 @@ void decomp_matrix(matrix* a, block_matrix* block_a){
 */
 void free_block_matrix(block_matrix* block_a){
     // iterate over each entry of block matrix
-	for (int i=0; i<block_a->m; i++){
-		for (int j=0; j<block_a->n; j++){
-            
+    for (int i=0; i<block_a->m; i++){
+        for (int j=0; j<block_a->n; j++){
             // picks out address of array within matrix struct within block matrix to free
-			free(&( ( (block_a->block_mat)[i*(block_a->n) + j] )->mat ) );
+            free(&( ( (block_a->block_mat)[i*(block_a->n) + j] ).mat ) );
+        }
+    }
 }
 
 
@@ -184,24 +187,26 @@ void comp_matrix(block_matrix* block_a, matrix* a){
     int sub_cols = 0;
     
     // iterating over blocks
-	for (int i=0; i<(block_a->m); i++){
-		for (int j=0; j<(block_a->n); j++){
+    for (int i=0; i<(block_a->m); i++){
+        for (int j=0; j<(block_a->n); j++){
+            //sub_rows = ((block_a->block_mat)[i*(block_a->n) + j])->m;
+            //sub_cols = ((block_a->block_mat)[i*(block_a->n) + j])->n;
             
-			sub_rows = ((block_a->block_mat)[i*(block_a->n) + j])->m;
-			sub_cols = ((block_a->block_mat)[i*(block_a->n) + j])->n;
-            
+            sub_rows = ((block_a->block_mat)[i*(block_a->n) + j]).m;
+            sub_cols = ((block_a->block_mat)[i*(block_a->n) + j]).n;
             // iterating over entries in block
-        	for (int k=0; k<sub_rows; k++){
-        		for (int l=0; l<sub_rows; l++){
-                    (a->mat)[(row_step + k)*n + (col_step + l)] = (block_a->block_mat)[k*sub_cols + l];
+            for (int k=0; k<sub_rows; k++){
+                for (int l=0; l<sub_rows; l++){
+                    (a->mat)[(row_step + k)*(a->n) + (col_step + l)] = ((block_a->block_mat)[k*sub_cols + l]).mat[k*(sub_cols) + l];
                 }
             }
 
             // picks out address of array within matrix struct, within block matrix to free
-			free(&( ( (block_a->block_mat)[i*(block_a->n) + j] )->mat ) );
-
+            free(&( ( (block_a->block_mat)[i*(block_a->n) + j] ).mat ) );
             col_step += sub_cols;
+            }
+
         row_step += sub_rows;
         col_step = 0;
-	}
+    }
 }

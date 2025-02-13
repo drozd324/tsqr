@@ -15,7 +15,7 @@ void print_matrix(int m, int n, double* a, int lda) {
 int main(){
 	srand(1234);
 	
-	int m = 4;
+	int m = 6;
 	int n = 3;
 	double* a = malloc(m * n * sizeof(double));
 	for (int i=0; i<(m*n); i++){
@@ -68,8 +68,10 @@ int main(){
 	double beta = 0;
 	
 	double* c = calloc(m * n, sizeof(double));
-	// THIS NO WORKIE
-	//cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, a[0][0], lda, r[0][0], lda, beta, &c[0][0], lda);
+	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+				m, n, k, alpha, a, lda, 
+				r, lda, beta, 
+				c, lda);
 
 	printf("\n");
 	printf("printing c, oringinal a\n"); 
