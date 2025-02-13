@@ -1,13 +1,14 @@
 //row major ideology
 // electric fence for debugging!
 
-#include "mat_tools.h"
+//#include "mat_tools.h"
 #include "tsqr.h"
 #include <cblas.h>
+#include <stdlib.h>
 
 int main(){
-    int m = 4;
-    int n = 3;
+    int m = 12;
+    int n = 4;
 
     matrix a;
     a.mat = malloc(m * n * sizeof(double));
@@ -30,7 +31,7 @@ int main(){
 
     tsqr(&a, &q, &r); 
 	
-    matrix* qr;
+    matrix qr;
     qr.mat = calloc(m * n, sizeof(double));
     qr.m = m;
     qr.n = n;

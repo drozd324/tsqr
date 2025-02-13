@@ -48,13 +48,13 @@ void tsqr(matrix* a, matrix* q, matrix* r){
         block_matrix* Q_temp;
         Q_temp->m = rows_num;
         Q_temp->n = rows_num;
-        Q_temp->block_mat = malloc(rows_num * rows_num * sizeof(matrix*));
+        Q_temp->block_mat = malloc(rows_num * rows_num * sizeof(matrix));
         
         // init R		
         block_matrix* R_temp;
         R_temp->m = rows_num;
         R_temp->n = 1;
-        R_temp->block_mat = malloc(rows_num * sizeof(matrix*));
+        R_temp->block_mat = malloc(rows_num * sizeof(matrix));
         
         // allocate memory for Q_temp
         for (int i=0; i<rows_num; i++){
@@ -69,7 +69,7 @@ void tsqr(matrix* a, matrix* q, matrix* r){
         
         // allocate memory for R_temp
         for (int i=0; i<rows_num; i++){
-            ((R_temp->block_mat)[i]).mat = calloc((a->n) * (a->n), sizeof(double*));
+            ((R_temp->block_mat)[i]).mat = calloc((a->n) * (a->n), sizeof(double));
             ((R_temp->block_mat)[i]).m   = (R->block_mat)->m;
             ((R_temp->block_mat)[i]).n   = a->n;
         }

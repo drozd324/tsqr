@@ -28,7 +28,7 @@ typedef struct _block_matrix{
 void print_matrix(int m, int n, double* a, int lda);
 void qr_decomp(int m, int n, double* a, double* q, double* r);
 void mat_mul(matrix* a, matrix* b, matrix* c);
-void decomp1d(int n, int N, int block_index, int s, int e);
+void decomp1d(int n, int N, int block_index, int* s, int* e);
 
 void decomp_matrix(matrix* a, block_matrix* block_a);
 void free_block_matrix(block_matrix* block_a);

@@ -99,16 +99,16 @@ void mat_mul(matrix* a, matrix* b, matrix* c){
  * @param s Start of block indexed by block_index in original array
  * @param e End of block indexed by block_index in original array
 */
-void decomp1d(int n, int N, int block_index, int s, int e){
+void decomp1d(int n, int N, int block_index, int* s, int* e){
     int remainder = n % N;
     int base = n / N;
 
     if (block_index < remainder){
-        s =  block_index * (base+1);
-        e = s + base+1;
+        *s =  block_index * (base+1);
+        *e = (*s) + base+1;
     } else {
-        s = (remainder * (base+1)) + ((fmax(block_index-remainder, 0)) * base);
-        e = s + base;
+        *s = (remainder * (base+1)) + ((fmax(block_index-remainder, 0)) * base);
+        *e = (*s) + base;
     }
 }
 
@@ -133,9 +133,9 @@ void decomp_matrix(matrix* a, block_matrix* block_a){
     
     // for each desired block
     for (int i=0; i < (block_a->m); i++){
-        decomp1d(a->m, block_a->m, i, s1, e1);
+        decomp1d(a->m, block_a->m, i, &s1, &e1);
         for (int j=0; j < (block_a->n); j++){
-            decomp1d(a->n, block_a->n , j, s2, e2);
+            decomp1d(a->n, block_a->n , j, &s2, &e2);
 
             ((block_a->block_mat)[i*(block_a->n) + j]).m   = e1 - s1; 
             ((block_a->block_mat)[i*(block_a->n) + j]).n   = e2 - s2; 
@@ -145,10 +145,9 @@ void decomp_matrix(matrix* a, block_matrix* block_a){
             
             // iterate over each entry of this block and plop in corresponding 
             // values from the matrix struct a
-            for (int k=0; k < e1-s1; k++){
-                for (int l=0; l < e2-s2; l++){
-                    //(block.mat)[k*(block.n) + l] = (a->mat)[(s1+k)*(a->n) + s2+l];
-                    (block_a->block_mat)[i*(block_a->n) + j].mat = &((a->mat)[(s1+k)*(a->n) + s2+l]); 
+            for (int k=0; k < (e1-s1); k++){
+                for (int l=0; l < (e2-s2); l++){
+                    (((block_a->block_mat)[i*(block_a->n) + j]).mat)[k*(e2-s2) + l] = (a->mat)[(s1+k)*(a->n) + s2+l]; 
                 }
             }
         }
@@ -166,7 +165,7 @@ void free_block_matrix(block_matrix* block_a){
     for (int i=0; i<block_a->m; i++){
         for (int j=0; j<block_a->n; j++){
             // picks out address of array within matrix struct within block matrix to free
-            free(&( ( (block_a->block_mat)[i*(block_a->n) + j] ).mat ) );
+            free(((block_a->block_mat)[i*(block_a->n) + j] ).mat);
         }
     }
 }
@@ -196,15 +195,15 @@ void comp_matrix(block_matrix* block_a, matrix* a){
             sub_cols = ((block_a->block_mat)[i*(block_a->n) + j]).n;
             // iterating over entries in block
             for (int k=0; k<sub_rows; k++){
-                for (int l=0; l<sub_rows; l++){
-                    (a->mat)[(row_step + k)*(a->n) + (col_step + l)] = ((block_a->block_mat)[k*sub_cols + l]).mat[k*(sub_cols) + l];
+                for (int l=0; l<sub_cols; l++){
+                    (a->mat)[(row_step + k)*(a->n) + (col_step + l)] = ((block_a->block_mat)[i*(block_a->n) + j]).mat[k*sub_cols + l];
                 }
             }
 
             // picks out address of array within matrix struct, within block matrix to free
-            free(&( ( (block_a->block_mat)[i*(block_a->n) + j] ).mat ) );
+            //free(((block_a->block_mat)[i*(block_a->n) + j]).mat);
             col_step += sub_cols;
-            }
+        }
 
         row_step += sub_rows;
         col_step = 0;
