@@ -3,13 +3,14 @@
 
 #include "mat_tools.h"
 #include "tsqr.h"
+#include <cblas.h>
 
 int main(){
     int m = 4;
     int n = 3;
 
     matrix a;
-    a.mat = malloc(m * n * sizeof(double);
+    a.mat = malloc(m * n * sizeof(double));
     a.m = m;
     a.n = n;
     srand(1234);
@@ -28,6 +29,27 @@ int main(){
     r.n = n;
 
     tsqr(&a, &q, &r); 
+	
+    matrix* qr;
+    qr.mat = calloc(m * n, sizeof(double));
+    qr.m = m;
+    qr.n = n;
+
+    mat_mul(&q, &r, &qr);
+
+    printf("printing input matrix a");
+    print_matrix(a.m, a.n, a.mat, a.n);
+
+    printf("printing input matrix q");
+    print_matrix(q.m, q.n, q.mat, q.n);
+
+    printf("printing input matrix r");
+    print_matrix(r.m, r.n, r.mat, r.n);
+
+    printf("printing input matrix qr");
+    print_matrix(qr.m, qr.n, qr.mat, qr.n);
+
+    
     
  
 
