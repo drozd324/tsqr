@@ -49,10 +49,6 @@ int main(){
     printf("printing input matrix qr");
     print_matrix(qr.m, qr.n, qr.mat, qr.n);
 
-    
-    
- 
-
     return 0; 
 }
 
