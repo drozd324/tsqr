@@ -7,8 +7,8 @@
 #include <stdlib.h>
 
 int main(){
-    int m = 12;
-    int n = 4;
+    int m = 100;
+    int n = 10;
 
     matrix a;
     a.mat = malloc(m * n * sizeof(double));
@@ -26,7 +26,7 @@ int main(){
 
     matrix r; 
     r.mat = calloc(n * n, sizeof(double));
-    r.m = m;
+    r.m = n;
     r.n = n;
 
     tsqr(&a, &q, &r); 

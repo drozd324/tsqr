@@ -1,8 +1,8 @@
 CC    = gcc
-DEBUG = -Wall -W #$(" ") #
+DEBUG = -Wall -Wextra -g -lefence #$(" ") #
 LIBS  = -lm -lblas -llapacke -llapack
 
-all: q2 q3
+all: q2 #q3
 
 q2: q2.c mat_tools.o tsqr.o
 	$(CC) -o q2 q2.c mat_tools.o tsqr.o $(LIBS) $(DEBUG) 
@@ -10,8 +10,8 @@ q2: q2.c mat_tools.o tsqr.o
 testing: testing.c mat_tools.o 
 	$(CC) -o testing testing.c mat_tools.o $(LIBS) $(DEBUG) 
 
-q3: q3.c mat_tools.o tsqr.o
-	$(CC) -o q3 q3.c mat_tools.o tsqr.o $(LIBS) $(DEBUG)
+#q3: q3.c mat_tools.o tsqr.o
+#	$(CC) -o q3 q3.c mat_tools.o tsqr.o $(LIBS) $(DEBUG)
 
 mat_tools.o: mat_tools.c mat_tools.h
 	$(CC) -c mat_tools.c $(LIBS) $(DEBUG)

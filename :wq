@@ -202,6 +202,7 @@ void comp_matrix(block_matrix* block_a, matrix* a){
             }
 
             // picks out address of array within matrix struct, within block matrix to free
+            //free(((block_a->block_mat)[i*(block_a->n) + j]).mat);
             col_step += sub_cols;
         }
 
