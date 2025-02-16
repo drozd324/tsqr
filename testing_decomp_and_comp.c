@@ -6,8 +6,8 @@
 #include <stdlib.h>
 
 int main(){
-    int m = 9;
-    int n = 5;
+    int m = 10;
+    int n = 10;
 
     matrix a;
     a.mat = malloc(m * n * sizeof(double));
@@ -26,14 +26,14 @@ int main(){
     //decomp1d(int n, int N, int block_index, int s, int e);
  
     block_matrix block_a;
-    block_a.m = 3;
+    block_a.m = 4;
     block_a.n = 1;
     block_a.block_mat = malloc((block_a.m) * (block_a.n) * sizeof(matrix));
  
     //decomp_matrix(matrix* a, block_matrix* block_a);
-    printf("decomp_mat start\n");
+    //printf("decomp_mat start\n");
     decomp_matrix(&a, &block_a);
-    printf("decomp_mat end\n");
+    //printf("decomp_mat end\n");
 
     printf("printing block_a\n");
     for (int i=0; i<block_a.m; i++){
@@ -53,12 +53,16 @@ int main(){
     comp_a.mat = malloc(m * n * sizeof(double));
     comp_a.m = m;
     comp_a.n = n;
-    printf("comp_mat start\n");
+    //printf("comp_mat start\n");
     comp_matrix(&block_a, &comp_a);
-    printf("comp_mat end\n");
+    //printf("comp_mat end\n");
 
     printf("printing input matrix comp_a\n");
     print_matrix(comp_a.m, comp_a.n, comp_a.mat, comp_a.n);
+
+    //for (int i=0; i<m*n; i++){
+    //    printf("%lf\n ", a.mat[i] - comp_a.mat[i]);
+    //}
     
     //free_block_matrix(block_matrix* block_a);
 

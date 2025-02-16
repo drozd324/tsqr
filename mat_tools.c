@@ -31,6 +31,27 @@ void print_matrix(int m, int n, double* a, int lda) {
 }
 
 /**
+ * @brief Prints each matrix within the block_matrix 
+ *        struct
+ *
+ * @param block_a Poiter to a block_matrix struct with every 
+ *        parameter filled out
+*/
+void print_block_matrix(block_matrix* block_a){
+    for (int i=0; i<block_a->m; i++){
+        for (int j=0; j<block_a->n; j++){
+            print_matrix(block_a->block_mat[i*block_a->n + j].m,
+                         block_a->block_mat[i*block_a->n + j].n,
+                         block_a->block_mat[i*block_a->n + j].mat,
+                         block_a->block_mat[i*block_a->n + j].n
+            );
+            printf("\n");
+        }
+    }
+}
+
+
+/**
  * @brief A function which combines two of LAPACKE's qr factorisation
  *        function to obain 
  *
@@ -70,21 +91,24 @@ void qr_decomp(int m, int n, double* a, double* q, double* r){
  *        when called in code. Performs a matrix multiplication on the 
  *        matrices a and b. 
  * 
- * @param a Pointer to matrix struct a
- * @param b Pointer to matrix struct b
+ * @param a Pointer to matrix struct a with m,n
+ * @param b Pointer to matrix struct b with m,n
  * @param c Pointer to result matrix
 */
 void mat_mul(matrix* a, matrix* b, matrix* c){
     int alpha = 1;
     int beta = 0;
  
-    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-        a->m, b->n, a->n, alpha, a->mat, a->n,
-        b->mat, b->n, 
-        beta, c->mat, c->n);
-
     c->m = a->m;
-    c->n = a->n;
+    c->n = b->n;
+
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+        a->m, b->n, a->n, 
+	alpha, 
+        a->mat, a->n,
+        b->mat, b->n, 
+        beta,
+	c->mat, c->n);
 }
 
 
@@ -169,6 +193,8 @@ void free_block_matrix(block_matrix* block_a){
             free(((block_a->block_mat)[i*(block_a->n) + j] ).mat);
         }
     }
+    
+    free(block_a->block_mat);
 }
 
 
@@ -178,7 +204,7 @@ void free_block_matrix(block_matrix* block_a){
  *        created by decomp_matrix.
  * 
  * @param block_a Pointer to a block_matrix struct with assigned shape, (n and m).
- * @param a Pointer to an empty matrix struct
+ * @param a Pointer to an empty matrix struct. This needs to have allocated entris for the matrix
 */
 void comp_matrix(block_matrix* block_a, matrix* a){
     int row_step = 0;
@@ -195,9 +221,14 @@ void comp_matrix(block_matrix* block_a, matrix* a){
             sub_rows = ((block_a->block_mat)[i*(block_a->n) + j]).m;
             sub_cols = ((block_a->block_mat)[i*(block_a->n) + j]).n;
             // iterating over entries in block
+            printf("sub_rows = %d\n", sub_rows);
+            printf("sub_cols = %d\n", sub_cols);
             for (int k=0; k<sub_rows; k++){
                 for (int l=0; l<sub_cols; l++){
-                    (a->mat)[(row_step + k)*(a->n) + (col_step + l)] = ((block_a->block_mat)[i*(block_a->n) + j]).mat[k*sub_cols + l];
+		    //printf("k,l = %d. %d\n", k, l);
+                    (a->mat)[(row_step + k)*(a->n) + (col_step + l)] = (((block_a->block_mat)[i*(block_a->n) + j]).mat)[k*sub_cols + l];
+                    //printf("mat = (a->mat)[(row_step + k)*(a->n) + (col_step + l)]
+                    //printf("(((block_a->block_mat)[i*(block_a->n) + j]).mat)[k*sub_cols + l]");
                 }
             }
 
