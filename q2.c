@@ -7,8 +7,8 @@
 #include <stdlib.h>
 
 int main(){
-    int m = 100;
-    int n = 10;
+    int m = 20;
+    int n = 5;
 
     matrix a;
     a.mat = malloc(m * n * sizeof(double));
@@ -38,16 +38,16 @@ int main(){
 
     mat_mul(&q, &r, &qr);
 
-    printf("printing input matrix a");
+    printf("printing input matrix a\n");
     print_matrix(a.m, a.n, a.mat, a.n);
 
-    printf("printing input matrix q");
+    printf("printing input matrix q\n");
     print_matrix(q.m, q.n, q.mat, q.n);
 
-    printf("printing input matrix r");
+    printf("printing input matrix r\n");
     print_matrix(r.m, r.n, r.mat, r.n);
 
-    printf("printing input matrix qr");
+    printf("printing input matrix qr\n");
     print_matrix(qr.m, qr.n, qr.mat, qr.n);
 
     return 0; 

@@ -1,5 +1,5 @@
-CC    = gcc
-DEBUG = -Wall -Wextra -g -lefence #$(" ") #
+CC    = gcc -O0
+DEBUG = -g -Wall -Wextra -lefence #$(" ") #
 LIBS  = -lm -lblas -llapacke -llapack
 
 all: q2 #q3

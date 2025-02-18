@@ -49,8 +49,8 @@ void tsqr(matrix* a, matrix* q, matrix* r){
     decomp_matrix(a, &R); //
 
     // main iteration loop
-    for (int iter=0; iter<3; iter++){
-	printf("PASS %d\n", iter);        
+    for (int iter=0; iter<2; iter++){
+	printf("PASS %d\n", iter);
         // init temp matrices for computations in current iteration		
         // init Q		
         block_matrix Q_temp;
@@ -77,9 +77,8 @@ void tsqr(matrix* a, matrix* q, matrix* r){
         
         // allocate memory for R_temp
         for (int i=0; i<rows_num; i++){
-            ((R_temp.block_mat)[i]).mat = calloc((R.block_mat)->m * (a->n), sizeof(double)); //
-            ((R_temp.block_mat)[i]).m   = (R.block_mat)->m;
-            //((R_temp.block_mat)[i]).m   = a->n;
+            ((R_temp.block_mat)[i]).mat = calloc((R.block_mat[i]).m * (a->n), sizeof(double)); //
+            ((R_temp.block_mat)[i]).m   = (R.block_mat[i]).m;
             ((R_temp.block_mat)[i]).n   = a->n;
         }
     	
@@ -88,8 +87,9 @@ void tsqr(matrix* a, matrix* q, matrix* r){
         for (int i=0; i<rows_num; i++){
             // index the block matrix and pick out the array of doubles representing matrix 
             //        m  n  (mat to decomp)
-            printf("m_i %d\n", ((R.block_mat)[i]).m);
-            printf("n_i %d\n", ((R.block_mat)[i]).n);
+            //printf("m_i %d\n", ((R.block_mat)[i]).m);
+            //printf("n_i %d\n", ((R.block_mat)[i]).n);
+	    //print_matrix(((R.block_mat)[i]).m, ((R.block_mat)[i]).n, ((R.block_mat)[i]).mat, ((R.block_mat)[i]).n);
             qr_decomp(
                 ((R.block_mat)[i]).m,                         // m
                 ((R.block_mat)[i]).n,                         // n 
@@ -97,21 +97,33 @@ void tsqr(matrix* a, matrix* q, matrix* r){
                 ((Q_temp.block_mat)[i*(Q_temp.n) + i]).mat,   // pick out  (i,i) entry in Q_temp which would be a matrix
                 ((R_temp.block_mat)[i]).mat                   // pick out (i,0) entry in block mat which is again a matrix
             );
-        } 
+	    //print_matrix(((R.block_mat)[i]).m, ((R.block_mat)[i]).n, ((R.block_mat)[i]).mat                    , ((R.block_mat)[i]).n);
+	    //print_matrix(((R.block_mat)[i]).m, ((R.block_mat)[i]).n, ((Q_temp.block_mat)[i*(Q_temp.n) + i]).mat, ((R.block_mat)[i]).n);
+	    //print_matrix(((R.block_mat)[i]).m, ((R.block_mat)[i]).n, ((R_temp.block_mat)[i]).mat               , ((R.block_mat)[i]).n);
         
+        } 
+
         // matrix needed for computation
         matrix Q_temp_matrix;
         Q_temp_matrix.m = (rows_num == max_block_rows) ? (a->m) : rows_num * 2 * (a->n);
         Q_temp_matrix.n = rows_num * (a->n);
         Q_temp_matrix.mat = malloc(Q_temp_matrix.m * Q_temp_matrix.n * sizeof(double)); //*
-        
+	
+	printf("Q.m = %d\n", Q.m);
+	printf("Q.n = %d\n", Q.n);
+	printf("Q_temp.m = %d\n", Q_temp.m);
+	printf("Q_temp.n = %d\n", Q_temp.n);
+	print_matrix(Q.m, Q.n, Q.mat, Q.m);
+	
+	//print_block_matrix(&Q_temp);
+      
         comp_matrix(&Q_temp, &Q_temp_matrix); // makes the block_matrix struct Q_temp into a matrix struct Q_temp_matrix
 	
 	// computing partial product of Q
         matrix mat_c;
         mat_c.mat = malloc(Q.m * Q_temp_matrix.n * sizeof(double)); //*
-	printf("Q.m, Q.n = %d, %d\n", Q.m, Q.n);
-	printf("Q_temp_matrix.m, Q_temp_matrix.n = %d, %d\n", Q_temp_matrix.m, Q_temp_matrix.n);
+	//printf("Q.m, Q.n = %d, %d\n", Q.m, Q.n);
+	//printf("Q_temp_matrix.m, Q_temp_matrix.n = %d, %d\n", Q_temp_matrix.m, Q_temp_matrix.n);
         mat_mul(&Q, &Q_temp_matrix, &mat_c);
         free(Q_temp_matrix.mat); //*
         
@@ -125,27 +137,56 @@ void tsqr(matrix* a, matrix* q, matrix* r){
         free(mat_c.mat); //*
     
         rows_num = rows_num / 2;
+	//printf("R before\n");
+	//print_block_matrix(&R);
         free_block_matrix(&R);
+
         R.m = rows_num;
+        R.n = 1;
+	//printf("R.m, R.n = %d, %d\n", R.m, R.n);
     	R.block_mat = malloc(R.m * R.n * sizeof(matrix));
          
         for (int i=0; i<rows_num; i++){
+            printf("i=%d\n", i);
             block_matrix temp_block;
             temp_block.m = 2;
             temp_block.n = 1;
-            ((temp_block.block_mat)[0]).mat = malloc( (((R_temp.block_mat)[i*2    ]).m) * (a->n) * sizeof(double));
-            ((temp_block.block_mat)[1]).mat = malloc( (((R_temp.block_mat)[i*2 + 1]).m) * (a->n) * sizeof(double));
-           
-            comp_matrix(&temp_block, &((R.block_mat)[i]));
-            ((R.block_mat)[i]).m = ((R_temp.block_mat)[i*2]).m + ((R_temp.block_mat)[i*2 + 1]).m;
-            ((R.block_mat)[i]).n = a->n; 
+	    temp_block.block_mat = malloc(temp_block.m * temp_block.n * sizeof(matrix));
+		
+	    //printf("printing the two block that are to be putinto temp_block\n");
+	    //print_matrix(((R_temp.block_mat)[i*2    ]).m, ((R_temp.block_mat)[i*2    ]).n, ((R_temp.block_mat)[i*2    ]).mat, ((R_temp.block_mat)[i*2    ]).n);
+	    //printf("\n");
+	    //print_matrix(((R_temp.block_mat)[i*2 + 1]).m, ((R_temp.block_mat)[i*2 + 1]).n, ((R_temp.block_mat)[i*2 + 1]).mat, ((R_temp.block_mat)[i*2 + 1]).n);
 
-            printf("m_i +0 %d\n", ((R_temp.block_mat)[i*2]).m);
-            printf("m_i +1 %d\n", ((R_temp.block_mat)[i*2 + 1]).m);
-            free(((temp_block.block_mat)[0]).mat);
-	    free(((temp_block.block_mat)[1]).mat);
+ 	    //printf("pointer to ((R_temp.block_mat)[i*2    ]).mat = %p\n",   ((R_temp.block_mat)[i*2    ]).mat);
+ 	    //printf("pointer to ((R_temp.block_mat)[i*2 + 1]).mat = %p\n",   ((R_temp.block_mat)[i*2 + 1]).mat);
+	
+            ((temp_block.block_mat)[0]).mat = ((R_temp.block_mat)[i*2    ]).mat;
+            ((temp_block.block_mat)[1]).mat = ((R_temp.block_mat)[i*2 + 1]).mat;
+            ((temp_block.block_mat)[0]).m = ((R_temp.block_mat)[i*2    ]).m;
+            ((temp_block.block_mat)[1]).m = ((R_temp.block_mat)[i*2 + 1]).m;
+            ((temp_block.block_mat)[0]).n = ((R_temp.block_mat)[i*2    ]).n;
+            ((temp_block.block_mat)[1]).n = ((R_temp.block_mat)[i*2 + 1]).n;
+
+	    //printf("pointer to ((temp_block.block_mat)[0]).mat = %p\n", ((temp_block.block_mat)[0]).mat);  
+	    //printf("pointer to ((temp_block.block_mat)[1]).mat = %p\n", ((temp_block.block_mat)[1]).mat);  
+            //printf("printing temp block for i=%d\n", i);
+	    //print_block_matrix(&temp_block);
+
+
+            ((R.block_mat)[i]).m = ((R_temp.block_mat)[i*2]).m + ((R_temp.block_mat)[i*2 + 1]).m;
+            ((R.block_mat)[i]).n = a->n;
+            R.block_mat[i].mat = malloc( (R.block_mat[i]).m * (R.block_mat[i]).n * sizeof(double));
+
+            comp_matrix(&temp_block, &((R.block_mat)[i])); // <- I THINK THIS IS WRONG
+
+            //printf("m_i +0 %d\n", ((R_temp.block_mat)[i*2]).m);
+            //printf("m_i +1 %d\n", ((R_temp.block_mat)[i*2 + 1]).m);
         }
 	    
+	//printf("R after\n");
+	//print_block_matrix(&R);
+
         free_block_matrix(&Q_temp);
         free_block_matrix(&R_temp);
 
