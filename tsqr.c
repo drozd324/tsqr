@@ -10,14 +10,31 @@
 #include <lapacke.h>
 #include <cblas.h>
 #include <string.h>
+#include <mpi.h>
 #include "tsqr.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////
-////CHECK FOR MEMORY LEAKS//////////CHECK FOR MEMORY LEAKS//////////CHECK FOR MEMORY LEAKS//////
-////////////////////////////////////////////////////////////////////////////////////////////////
+/*
+in pseudo code the serial version
 
-//UPDATE SHAPES OF MATRICES AND BLOCK MATRICES IN THE CODE//
+alloc Q
+alloc R
 
+for 2 iter
+	alloc Q_temp
+	alloc R_temp
+
+	do serial qr decomp
+
+	mutliply Q by Q_temp and save to Q
+
+	construct newly blocked R and save to R
+
+alloc q_temp
+
+do serial qr decomp -> save to final Q, r
+mutliply Q by Q_temp and save to q
+
+*/
 /**
  * @brief Computes a QR factorisation of an input matrix struct a, using the TQSR 
  *        (Tall Skinny QR) method in a parallel way using 4 nodes.
@@ -27,160 +44,174 @@
  * @param r Pointer to an empty matrix struct
 */
 void tsqr(matrix* a, matrix* q, matrix* r){
+    int proc;
+    int num_procs;
+    MPI_Status status;
+    MPI_Init(NULL, NULL);
+    MPI_Comm_proc(MPI_COMM_WORLD, &proc);
+    MPI_Comm_size(MPI_COMM_WORLD, &num_procs); 
+
     int max_block_rows = 4;
     int rows_num = max_block_rows;
-    //int m = a->m;
-    //int n = a->n;
+		
+	// INIT FIRST LOCAL MATRICES FOR DECOMPOSITION
+    if (proc == 0){
 
-    // initialises Q matrix to be an identity matrix
-    matrix Q;
-    Q.m = q->m;
-    Q.n = q->m;
-    Q.mat = calloc(Q.m * Q.m, sizeof(double)); //
-    for (int i=0; i<(Q.m); i++){
-        (Q.mat)[i*(Q.m) + i] = 1;
-    }
-    
-    // initialise block matrix R for a to be decomposed into 
-    block_matrix R;
-    R.m = rows_num;
-    R.n = 1;
-    R.block_mat = malloc(R.m * R.n * sizeof(matrix));
-    decomp_matrix(a, &R); //
+        // initialises Q matrix to be an identity matrix
+        matrix Q;
+        Q.m = q->m;
+        Q.n = q->m;
+        Q.mat = calloc(Q.m * Q.m, sizeof(double)); //
+        for (int i=0; i<(Q.m); i++){
+            (Q.mat)[i*(Q.m) + i] = 1;
+        }
+        	
+        // initialise block matrix R for a to be decomposed into 
+        block_matrix R;
+        R.m = rows_num;
+        R.n = 1;
+        R.block_mat = malloc(R.m * R.n * sizeof(matrix));
+        decomp_matrix(a, &R); //
 
-    // main iteration loop
-    for (int iter=0; iter<2; iter++){
-	printf("PASS %d\n", iter);
-        // init temp matrices for computations in current iteration		
-        // init Q		
+        // init Q to store blocks from local QR decomp
         block_matrix Q_temp;
         Q_temp.m = rows_num;
         Q_temp.n = rows_num;
         Q_temp.block_mat = malloc(rows_num * rows_num * sizeof(matrix)); //
-        
-        // init R	
-        block_matrix R_temp;
-        R_temp.m = rows_num;
-        R_temp.n = 1;
-        R_temp.block_mat = malloc(rows_num * sizeof(matrix)); //
-        
-        // allocate memory for Q_temp
         for (int i=0; i<rows_num; i++){ //row
             for (int j=0; j<rows_num; j++){ //col
-                // (array of matrix structs)[of matrix struct]
-                // (block matrix)[index of matrix]->(array of double representing matrix)  =  calloc size m_i*n array of doubles representing matrix
                 ((Q_temp.block_mat)[i*(Q_temp.n) + j]).mat = calloc((((R.block_mat)[i]).m) * ((R.block_mat)[i]).n, sizeof(double)); //
                 ((Q_temp.block_mat)[i*(Q_temp.n) + j]).m   = ((R.block_mat)[i]).m;
                 ((Q_temp.block_mat)[i*(Q_temp.n) + j]).n   = ((R.block_mat)[i]).n;
             }
-        } 
-        
-        // allocate memory for R_temp
-        for (int i=0; i<rows_num; i++){
-            ((R_temp.block_mat)[i]).mat = calloc((R.block_mat[i]).m * (R.block_mat[i]).n, sizeof(double)); //
-            ((R_temp.block_mat)[i]).m   = (R.block_mat[i]).m;
-            ((R_temp.block_mat)[i]).n   = (R.block_mat[i]).n;
         }
-    	
-        // perform qr decomp for each block		
-	// add check for m>n so that it doesnt shit itself
-        for (int i=0; i<rows_num; i++){
-            // index the block matrix and pick out the array of doubles representing matrix 
-            //        m  n  (mat to decomp)
-            //printf("m_i %d\n", ((R.block_mat)[i]).m);
-            //printf("n_i %d\n", ((R.block_mat)[i]).n);
-	    //print_matrix(((R.block_mat)[i]).m, ((R.block_mat)[i]).n, ((R.block_mat)[i]).mat, ((R.block_mat)[i]).n);
-            qr_decomp(
-                ((R.block_mat)[i]).m,                         // m
-                ((R.block_mat)[i]).n,                         // n 
-                ((R.block_mat)[i]).mat,                       // matrix to decompose
-                ((Q_temp.block_mat)[i*(Q_temp.n) + i]).mat,   // pick out  (i,i) entry in Q_temp which would be a matrix
-                ((R_temp.block_mat)[i]).mat                   // pick out (i,0) entry in block mat which is again a matrix
-            );
-	    //print_matrix(((R.block_mat)[i]).m, ((R.block_mat)[i]).n, ((R.block_mat)[i]).mat                    , ((R.block_mat)[i]).n);
-	    //print_matrix(((R.block_mat)[i]).m, ((R.block_mat)[i]).n, ((Q_temp.block_mat)[i*(Q_temp.n) + i]).mat, ((R.block_mat)[i]).n);
-	    //print_matrix(((R.block_mat)[i]).m, ((R.block_mat)[i]).n, ((R_temp.block_mat)[i]).mat               , ((R.block_mat)[i]).n);
-        
-        } 
-
-        // matrix needed for computation
-        matrix Q_temp_matrix;
-        Q_temp_matrix.m = (rows_num == max_block_rows) ? (a->m) : rows_num * 2 * (a->n);
-        Q_temp_matrix.n = rows_num * (a->n);
-        Q_temp_matrix.mat = malloc(Q_temp_matrix.m * Q_temp_matrix.n * sizeof(double)); //*
-	
-	printf("Q.m = %d\n", Q.m);
-	printf("Q.n = %d\n", Q.n);
-	printf("Q_temp.m = %d\n", Q_temp.m);
-	printf("Q_temp.n = %d\n", Q_temp.n);
-	print_matrix(Q.m, Q.n, Q.mat, Q.m);
-	
-	//print_block_matrix(&Q_temp);
-      
-        comp_matrix(&Q_temp, &Q_temp_matrix); // makes the block_matrix struct Q_temp into a matrix struct Q_temp_matrix
-	
-	// computing partial product of Q
-        matrix mat_c;
-        mat_c.mat = malloc(Q.m * Q_temp_matrix.n * sizeof(double)); //*
-	//printf("Q.m, Q.n = %d, %d\n", Q.m, Q.n);
-	printf("Q_temp_matrix.m, Q_temp_matrix.n = %d, %d\n", Q_temp_matrix.m, Q_temp_matrix.n);
-        mat_mul(&Q, &Q_temp_matrix, &mat_c);
-        free(Q_temp_matrix.mat); //*
-        
-        //Q.m = q->m; stays the same
-        Q.n = Q_temp_matrix.n;
-	free(Q.mat); //*
-        Q.mat = malloc(Q.m * Q.n * sizeof(double)); //
-
-	memcpy(Q.mat, mat_c.mat, Q.m * Q.n * sizeof(double));
-        free(mat_c.mat); //*
-    
-        rows_num = rows_num / 2;
-	//printf("R before\n");
-	//print_block_matrix(&R);
-        free_block_matrix(&R);
-
-        R.m = rows_num;
-        R.n = 1;
-	//printf("R.m, R.n = %d, %d\n", R.m, R.n);
-    	R.block_mat = malloc(R.m * R.n * sizeof(matrix));
-         
-        for (int i=0; i<rows_num; i++){
-            printf("i=%d\n", i);
-            block_matrix temp_block;
-            temp_block.m = 2;
-            temp_block.n = 1;
-	    temp_block.block_mat = malloc(temp_block.m * temp_block.n * sizeof(matrix));
-		
-	    printf("printing the two block that are to be putinto temp_block\n");
-	    print_matrix(((R_temp.block_mat)[i*2    ]).m, ((R_temp.block_mat)[i*2    ]).n, ((R_temp.block_mat)[i*2    ]).mat, ((R_temp.block_mat)[i*2    ]).n);
-	    printf("\n");
-	    print_matrix(((R_temp.block_mat)[i*2 + 1]).m, ((R_temp.block_mat)[i*2 + 1]).n, ((R_temp.block_mat)[i*2 + 1]).mat, ((R_temp.block_mat)[i*2 + 1]).n);
-
-            ((temp_block.block_mat)[0]).mat = ((R_temp.block_mat)[i*2    ]).mat;
-            ((temp_block.block_mat)[1]).mat = ((R_temp.block_mat)[i*2 + 1]).mat;
-            ((temp_block.block_mat)[0]).m = ((R_temp.block_mat)[i*2    ]).m;
-            ((temp_block.block_mat)[1]).m = ((R_temp.block_mat)[i*2 + 1]).m;
-            ((temp_block.block_mat)[0]).n = ((R_temp.block_mat)[i*2    ]).n;
-            ((temp_block.block_mat)[1]).n = ((R_temp.block_mat)[i*2 + 1]).n;
-
-            printf("printing temp block for i=%d\n", i);
-	    print_block_matrix(&temp_block);
-
-            ((R.block_mat)[i]).m = ((R_temp.block_mat)[i*2]).m + ((R_temp.block_mat)[i*2 + 1]).m;
-            ((R.block_mat)[i]).n = a->n;
-            R.block_mat[i].mat = malloc( (R.block_mat[i]).m * (R.block_mat[i]).n * sizeof(double));
-
-            comp_matrix(&temp_block, &((R.block_mat)[i])); 
+     
+        // send to each processor except for proc=0
+        // distribute a to local processors
+        for (int i=1; i<num_procs; i++){
+            MPI_Send(((R.block_mat)[i]).m, 1 , MPI_INT, 101+(i*10), MPI_COMM_WORLD);
+            MPI_Send(((R.block_mat)[i]).n, 1, MPI_INT, 102+(i*10), MPI_COMM_WORLD);
+            MPI_Send(((R.block_mat)[i]).mat, ((R.block_mat)[i]).m * ((R.block_mat)[i]).n, MPI_DOUBLE, 100+(i*10), MPI_COMM_WORLD);
         }
-	    
-	printf("R after\n");
-	print_block_matrix(&R);
-
-        free_block_matrix(&Q_temp);
-        free_block_matrix(&R_temp);
-
     }
+
+    // recieve/distribute the deomposed bits of R into local memory in each processor
+    matrix loc_R;
+    if (proc != 0){
+        MPI_Recv(loc_R.m, 1, MPI_INT, 101+(proc*10), MPI_COMM_WORLD, &status);
+        MPI_Recv(loc_R.n, 1, MPI_INT, 102+(proc*10), MPI_COMM_WORLD, &status);
+        loc_R.mat = malloc(loc_R.m * loc_R.n * sizeof(double));
+        MPI_Recv(loc_R.mat, loc_R.m * loc_R.n, MPI_DOUBLE, 100+(proc*10), MPI_COMM_WORLD, &status);
+    } else {  // on proc 1
+        loc_R.m   = ((R.block_mat)[0]).m; 
+        loc_R.n   = ((R.block_mat)[0]).n;
+        loc_R.mat = ((R.block_mat)[0]).mat;
+    }
+
+
+    // main iteration loop
+    for (int iter=0; iter<2; iter++){
+	
+		// DO LOCAL QR DECOMPOSITION
+        if ((iter == 0) || (iter == 1 && (proc % 2))){
+            matrix loc_Q_temp;
+            loc_Q_temp.m   = loc_R.m;
+            loc_Q_temp.n   = loc_R.n;
+            loc_Q_temp.mat = calloc(loc_Q_temp.m * loc_Q_temp.n, sizeof(double)); //
+                
+            matrix loc_R_temp;
+            loc_R_temp.m   = loc_R.n;
+            loc_R_temp.n   = loc_R.n;
+            loc_R_temp.mat = calloc(loc_R_temp.n * loc_R_temp.n, sizeof(double)); //
+
+            qr_decomp(
+                loc_R.m,
+                loc_R.n,
+                loc_Q_temp.mat,
+                loc_R_temp.mat
+            ); 
+        }	
+
+	    // SEND loc_r_temp TO "NEIGHBOUR" PROCESSOR 
+	    if ( ((iter == 0) && (1 == (proc%2))) || ((iter == 1) && (proc == 2)) ){
+	        MPI_Send(loc_R_temp.m  , 1                          , MPI_INT   , 301+((proc-1)*10), MPI_COMM_WORLD);
+	        MPI_Send(loc_R_temp.n  , 1                          , MPI_INT   , 302+((proc-1)*10), MPI_COMM_WORLD);
+	        MPI_Send(loc_R_temp.mat, loc_R_temp.m * loc_R_temp.n, MPI_DOUBLE, 300+((proc-1)*10), MPI_COMM_WORLD);
+             
+	    } 
+		
+		// RECIEVE FROM NEIGHBOUR PROCESSOR 
+		if ( ((iter == 0) && (0 == (proc%2))) || ((iter == 1) && (proc == 0 )) ){
+            // i can probably rewrite this to not have to bother with loc_temp_block    
+			// init temporary block matrix
+            block_matrix loc_temp_block;
+            loc_temp_block.m = 2;
+            loc_temp_block.n = 1;
+            loc_temp_block.block_mat = malloc(loc_temp_block.m * loc_temp_block.n * sizeof(matrix));
+			
+		    // write local computed loc_R from proc
+            ((temp_block.block_mat)[0]).mat = loc_R_temp.mat;
+            ((temp_block.block_mat)[0]).m   = loc_R_temp.m;
+            ((temp_block.block_mat)[0]).n   = loc_R_temp.n;
+               
+	        MPI_Recv(loc_R_temp.m  , 1                          , MPI_INT   , 301+((proc)*10), MPI_COMM_WORLD, %status);
+	        MPI_Recv(loc_R_temp.n  , 1                          , MPI_INT   , 302+((proc)*10), MPI_COMM_WORLD, %status);
+	        MPI_Recv(loc_R_temp.mat, loc_R_temp.m * loc_R_temp.n, MPI_DOUBLE, 300+((proc)*10), MPI_COMM_WORLD, %status);
+
+		    // rewrite the local R matrix
+            free(loc_R.mat);
+		    matrix loc_R;
+		    loc_R.m = ((temp_block.block_mat)[0]).m + ((temp_block.block_mat)[1]).m;
+		    loc_R.n = ((temp_block.block_mat)[0]).n;
+		    loc_R.mat = malloc(loc_R.m * loc_R.n * sizeof(double));
+		
+            comp_matrix(&loc_temp_block, &loc_R);
+		    free(loc_temp_block.block_mat[1].mat);
+		    free(loc_temp_block.block_mat);
+		}
+
+		if (proc != 0){
+            // send loc_Q_temp
+            MPI_Send(loc_Q_temp.m  , 1                          , MPI_INT   , 201+(proc*10), MPI_COMM_WORLD);
+            MPI_Send(loc_Q_temp.n  , 1                          , MPI_INT   , 202+(proc*10), MPI_COMM_WORLD);                    
+            MPI_Send(loc_Q_temp.mat, loc_Q_temp.m * loc_Q_temp.n, MPI_DOUBLE, 200+(proc*10), MPI_COMM_WORLD);
+
+		} else { //if i==0
+			// collect Q from each processor that has one
+		    for (int j=1; j<rows_num; j++){
+	            MPI_Recv(Q_temp.block_mat[j*rows_num + j].m  , 1                                                                      , MPI_INT   , 201+((j)*10), MPI_COMM_WORLD, &status);
+	            MPI_Recv(Q_temp.block_mat[j*rows_num + j].n  , 1                                                                      , MPI_INT   , 202+((j)*10), MPI_COMM_WORLD, &status);
+	            MPI_Recv(Q_temp.block_mat[j*rows_num + j].mat, Q_temp.block_mat[j*rows_num + j].m * Q_temp.block_mat[j*rows_num + j].n, MPI_DOUBLE, 200+((j)*10), MPI_COMM_WORLD, &status);
+
+		    	Q_temp.block_mat[j*rows_num + j].m   = loc_Q_temp.m;
+            	Q_temp.block_mat[j*rows_num + j].n   = loc_Q_temp.n;
+            	Q_temp.block_mat[j*rows_num + j].mat = loc_Q_temp.mat;
+		    }
+		
+		    // to make matrix out of block matrix
+            matrix Q_temp_matrix;
+            Q_temp_matrix.m = ((rows_num * 2) == max_block_rows) ? (a->m) : (rows_num * 2) * 2 * (a->n);
+            Q_temp_matrix.n = rows_num * 2 * (a->n);
+            Q_temp_matrix.mat = malloc(Q_temp_matrix.m * Q_temp_matrix.n * sizeof(double)); //*
+            comp_matrix(&Q_temp, &Q_temp_matrix); // makes the block_matrix struct Q_temp into a matrix struct Q_temp_matrix
+            
+            // computing partial product of Q
+            matrix mat_c;
+            mat_c.mat = malloc(Q.m * Q_temp_matrix.n * sizeof(double)); //*
+            mat_mul(&Q, &Q_temp_matrix, &mat_c);
+
+            free(Q_temp_matrix.mat); //*
+            
+            Q.n = Q_temp_matrix.n;
+            free(Q.mat); //*
+    	    Q.mat = mat_c.mat;
+		
+	        rows_num = rows_num / 2;
+		}
+	    
+     
+    }
+
     
     matrix q_temp;
     q_temp.m = ((R.block_mat)[0]).m;
@@ -197,4 +228,6 @@ void tsqr(matrix* a, matrix* q, matrix* r){
 
     mat_mul(&Q, &q_temp, q);
     free(q_temp.mat);
+
+    MPI_Finalize();
 }
