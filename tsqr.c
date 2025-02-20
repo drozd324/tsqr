@@ -13,28 +13,6 @@
 #include <mpi.h>
 #include "tsqr.h"
 
-/*
-in pseudo code the serial version
-
-alloc Q
-alloc R
-
-for 2 iter
-	alloc Q_temp
-	alloc R_temp
-
-	do serial qr decomp
-
-	mutliply Q by Q_temp and save to Q
-
-	construct newly blocked R and save to R
-
-alloc q_temp
-
-do serial qr decomp -> save to final Q, r
-mutliply Q by Q_temp and save to q
-
-*/
 /**
  * @brief Computes a QR factorisation of an input matrix struct a, using the TQSR 
  *        (Tall Skinny QR) method in a parallel way using 4 nodes.
@@ -47,34 +25,37 @@ void tsqr(matrix* a, matrix* q, matrix* r){
     int proc;
     int num_procs;
     MPI_Status status;
-    MPI_Init(NULL, NULL);
-    MPI_Comm_proc(MPI_COMM_WORLD, &proc);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc);
     MPI_Comm_size(MPI_COMM_WORLD, &num_procs); 
 
     int max_block_rows = 4;
     int rows_num = max_block_rows;
-		
+	
+    matrix Q;
+    block_matrix R;
+    block_matrix Q_temp;
+
 	// INIT FIRST LOCAL MATRICES FOR DECOMPOSITION
     if (proc == 0){
 
         // initialises Q matrix to be an identity matrix
-        matrix Q;
+        //matrix Q;
         Q.m = q->m;
         Q.n = q->m;
         Q.mat = calloc(Q.m * Q.m, sizeof(double)); //
         for (int i=0; i<(Q.m); i++){
             (Q.mat)[i*(Q.m) + i] = 1;
         }
-        	
+        
         // initialise block matrix R for a to be decomposed into 
-        block_matrix R;
+        //block_matrix R;
         R.m = rows_num;
         R.n = 1;
         R.block_mat = malloc(R.m * R.n * sizeof(matrix));
         decomp_matrix(a, &R); //
 
         // init Q to store blocks from local QR decomp
-        block_matrix Q_temp;
+        //block_matrix Q_temp;
         Q_temp.m = rows_num;
         Q_temp.n = rows_num;
         Q_temp.block_mat = malloc(rows_num * rows_num * sizeof(matrix)); //
@@ -86,23 +67,25 @@ void tsqr(matrix* a, matrix* q, matrix* r){
             }
         }
      
-        // send to each processor except for proc=0
-        // distribute a to local processors
+        // SEND TO EACH PROCESSOR EXCEPT FOR PROC=0
         for (int i=1; i<num_procs; i++){
-            MPI_Send(((R.block_mat)[i]).m, 1 , MPI_INT, 101+(i*10), MPI_COMM_WORLD);
-            MPI_Send(((R.block_mat)[i]).n, 1, MPI_INT, 102+(i*10), MPI_COMM_WORLD);
-            MPI_Send(((R.block_mat)[i]).mat, ((R.block_mat)[i]).m * ((R.block_mat)[i]).n, MPI_DOUBLE, 100+(i*10), MPI_COMM_WORLD);
+			//fprintf(stderr, "Send to i*10=%d from 0\n", i*10);
+            MPI_Send(&(((R.block_mat)[i]).m) , 1                                          , MPI_INT   , i, 101+(i*10), MPI_COMM_WORLD);
+            MPI_Send(&(((R.block_mat)[i]).n) , 1                                          , MPI_INT   , i, 102+(i*10), MPI_COMM_WORLD);
+            MPI_Send(  ((R.block_mat)[i]).mat, ((R.block_mat)[i]).m * ((R.block_mat)[i]).n, MPI_DOUBLE, i, 100+(i*10), MPI_COMM_WORLD);
         }
     }
 
-    // recieve/distribute the deomposed bits of R into local memory in each processor
+    // RECIEVE/WIRTE THE DEOMPOSED BITS OF R INTO LOCAL MEMORY IN EACH PROCESSOR
     matrix loc_R;
     if (proc != 0){
-        MPI_Recv(loc_R.m, 1, MPI_INT, 101+(proc*10), MPI_COMM_WORLD, &status);
-        MPI_Recv(loc_R.n, 1, MPI_INT, 102+(proc*10), MPI_COMM_WORLD, &status);
+		//fprintf(stderr, "Recv to proc*10=%d from 0\n", proc*10);
+        MPI_Recv(&(loc_R.m) , 1                , MPI_INT   , 0, 101+(proc*10), MPI_COMM_WORLD, &status);
+        MPI_Recv(&(loc_R.n) , 1                , MPI_INT   , 0, 102+(proc*10), MPI_COMM_WORLD, &status);
         loc_R.mat = malloc(loc_R.m * loc_R.n * sizeof(double));
-        MPI_Recv(loc_R.mat, loc_R.m * loc_R.n, MPI_DOUBLE, 100+(proc*10), MPI_COMM_WORLD, &status);
-    } else {  // on proc 1
+        MPI_Recv(  loc_R.mat, loc_R.m * loc_R.n, MPI_DOUBLE, 0, 100+(proc*10), MPI_COMM_WORLD, &status);	
+
+    } else {  // on proc 0
         loc_R.m   = ((R.block_mat)[0]).m; 
         loc_R.n   = ((R.block_mat)[0]).n;
         loc_R.mat = ((R.block_mat)[0]).mat;
@@ -110,38 +93,45 @@ void tsqr(matrix* a, matrix* q, matrix* r){
 
 
     // main iteration loop
+    matrix loc_Q_temp;
+    matrix loc_R_temp;
     for (int iter=0; iter<2; iter++){
-	
+		fprintf(stderr, "ITER=%d on proc=%d\n", iter, proc);
+
 		// DO LOCAL QR DECOMPOSITION
-        if ((iter == 0) || (iter == 1 && (proc % 2))){
-            matrix loc_Q_temp;
+        if ((iter == 0) || ((iter == 1) && (0 == (proc % 2))) ){
+            //matrix loc_Q_temp;
             loc_Q_temp.m   = loc_R.m;
             loc_Q_temp.n   = loc_R.n;
             loc_Q_temp.mat = calloc(loc_Q_temp.m * loc_Q_temp.n, sizeof(double)); //
                 
-            matrix loc_R_temp;
+            //matrix loc_R_temp;
             loc_R_temp.m   = loc_R.n;
             loc_R_temp.n   = loc_R.n;
             loc_R_temp.mat = calloc(loc_R_temp.n * loc_R_temp.n, sizeof(double)); //
 
+			fprintf(stderr, "QR DECOMP ITER=%d, proc = %d \n", iter, proc);
             qr_decomp(
                 loc_R.m,
                 loc_R.n,
+                loc_R.mat,
                 loc_Q_temp.mat,
                 loc_R_temp.mat
             ); 
         }	
 
-	    // SEND loc_r_temp TO "NEIGHBOUR" PROCESSOR 
+	    // SEND loc_r_temp TO "NEIGHBOUR" PROCESSOR
 	    if ( ((iter == 0) && (1 == (proc%2))) || ((iter == 1) && (proc == 2)) ){
-	        MPI_Send(loc_R_temp.m  , 1                          , MPI_INT   , 301+((proc-1)*10), MPI_COMM_WORLD);
-	        MPI_Send(loc_R_temp.n  , 1                          , MPI_INT   , 302+((proc-1)*10), MPI_COMM_WORLD);
-	        MPI_Send(loc_R_temp.mat, loc_R_temp.m * loc_R_temp.n, MPI_DOUBLE, 300+((proc-1)*10), MPI_COMM_WORLD);
-             
+			fprintf(stderr, "R ITER=%d, Send to neighbour=%d from %d,   tag =  %d \n", iter, proc-(1+iter), proc, 301+((proc-(1+iter))*10));
+			fprintf(stderr, "AAAAAAA (loc_R_temp.m) = %d\n", (loc_R_temp.m));
+	        MPI_Send(&(loc_R_temp.m)  , 1                          , MPI_INT   , proc-(1+iter), 301+((proc-(1+iter))*10), MPI_COMM_WORLD);
+	        MPI_Send(&(loc_R_temp.n)  , 1                          , MPI_INT   , proc-(1+iter), 302+((proc-(1+iter))*10), MPI_COMM_WORLD);
+	        MPI_Send(  loc_R_temp.mat , loc_R_temp.m * loc_R_temp.n, MPI_DOUBLE, proc-(1+iter), 300+((proc-(1+iter))*10), MPI_COMM_WORLD);
+            																     // to proc 0 ,      300
 	    } 
 		
-		// RECIEVE FROM NEIGHBOUR PROCESSOR 
-		if ( ((iter == 0) && (0 == (proc%2))) || ((iter == 1) && (proc == 0 )) ){
+		// RECIEVE FROM "NEIGHBOUR" PROCESSOR 
+		if ( ((iter == 0) && (0 == (proc%2))) || ((iter == 1) && (proc == 0)) ){
             // i can probably rewrite this to not have to bother with loc_temp_block    
 			// init temporary block matrix
             block_matrix loc_temp_block;
@@ -150,43 +140,66 @@ void tsqr(matrix* a, matrix* q, matrix* r){
             loc_temp_block.block_mat = malloc(loc_temp_block.m * loc_temp_block.n * sizeof(matrix));
 			
 		    // write local computed loc_R from proc
-            ((temp_block.block_mat)[0]).mat = loc_R_temp.mat;
-            ((temp_block.block_mat)[0]).m   = loc_R_temp.m;
-            ((temp_block.block_mat)[0]).n   = loc_R_temp.n;
+            ((loc_temp_block.block_mat)[0]).mat = loc_R_temp.mat;
+            ((loc_temp_block.block_mat)[0]).m   = loc_R_temp.m;
+            ((loc_temp_block.block_mat)[0]).n   = loc_R_temp.n;
                
-	        MPI_Recv(loc_R_temp.m  , 1                          , MPI_INT   , 301+((proc)*10), MPI_COMM_WORLD, %status);
-	        MPI_Recv(loc_R_temp.n  , 1                          , MPI_INT   , 302+((proc)*10), MPI_COMM_WORLD, %status);
-	        MPI_Recv(loc_R_temp.mat, loc_R_temp.m * loc_R_temp.n, MPI_DOUBLE, 300+((proc)*10), MPI_COMM_WORLD, %status);
+			//
+			fprintf(stderr, "BEFORE ((loc_temp_block.block_mat)[1]).m = %d\n", ((loc_temp_block.block_mat)[1]).m);
+			// this shit above baaaaaaaaaaaaad
+			fprintf(stderr, "R ITER=%d Recv on neighbour=%d from %d, tag = %d \n", iter, proc, proc + 1+iter, 301+((proc + 2*iter)*10));
+	        MPI_Recv(&(((loc_temp_block.block_mat)[0]).m) , 1                                                                    , MPI_INT   , proc + 1+iter, 301+((proc*10)*(1-iter)), MPI_COMM_WORLD, &status);
+	        MPI_Recv(&(((loc_temp_block.block_mat)[0]).n) , 1                                                                    , MPI_INT   , proc + 1+iter, 302+((proc*10)*(1-iter)), MPI_COMM_WORLD, &status);
+			((loc_temp_block.block_mat)[0]).mat =    malloc(((loc_temp_block.block_mat)[0]).m * ((loc_temp_block.block_mat)[0]).n * sizeof(double));
+	        MPI_Recv(  ((loc_temp_block.block_mat)[0]).mat, ((loc_temp_block.block_mat)[0]).m * ((loc_temp_block.block_mat)[0]).n, MPI_DOUBLE, proc + 1+iter, 300+((proc*10)*(1-iter)), MPI_COMM_WORLD, &status);
 
 		    // rewrite the local R matrix
             free(loc_R.mat);
 		    matrix loc_R;
-		    loc_R.m = ((temp_block.block_mat)[0]).m + ((temp_block.block_mat)[1]).m;
-		    loc_R.n = ((temp_block.block_mat)[0]).n;
+		    loc_R.m = ((loc_temp_block.block_mat)[0]).m + ((loc_temp_block.block_mat)[1]).m;
+		    //loc_R.n = ((loc_temp_block.block_mat)[0]).n;
+			fprintf(stderr, "ITER=%d, proc=%d, loc_R.m = %d\n", proc, iter, loc_R.m);
+			fprintf(stderr, "ITER=%d, proc=%d, ((loc_temp_block.block_mat)[0]).m = %d\n", proc, iter, ((loc_temp_block.block_mat)[0]).m);
+			fprintf(stderr, "ITER=%d, proc=%d, ((loc_temp_block.block_mat)[1]).m = %d\n", proc, iter, ((loc_temp_block.block_mat)[1]).m);
+			fprintf(stderr, "ITER=%d, proc=%d, ((loc_temp_block.block_mat)[1]).n = %d\n", proc, iter, ((loc_temp_block.block_mat)[1]).n);
 		    loc_R.mat = malloc(loc_R.m * loc_R.n * sizeof(double));
 		
             comp_matrix(&loc_temp_block, &loc_R);
 		    free(loc_temp_block.block_mat[1].mat);
 		    free(loc_temp_block.block_mat);
 		}
-
-		if (proc != 0){
+		
+		// MAKING PART OF Q MATRIX BY MULTIPLYING IN WHAT WE HAVE SO FAR
+		if ( ((iter == 0) && (proc != 0)) || ((iter == 1) && (proc == 2)) ){
             // send loc_Q_temp
-            MPI_Send(loc_Q_temp.m  , 1                          , MPI_INT   , 201+(proc*10), MPI_COMM_WORLD);
-            MPI_Send(loc_Q_temp.n  , 1                          , MPI_INT   , 202+(proc*10), MPI_COMM_WORLD);                    
-            MPI_Send(loc_Q_temp.mat, loc_Q_temp.m * loc_Q_temp.n, MPI_DOUBLE, 200+(proc*10), MPI_COMM_WORLD);
+			//fprintf(stderr, "Q ITER=%d, Send to 0 from %d,   tag =  %d \n", iter, proc, 201+(proc*10));
+            MPI_Send(&(loc_Q_temp.m)  , 1                          , MPI_INT   , 0, 201+(proc*10), MPI_COMM_WORLD);
+            MPI_Send(&(loc_Q_temp.n)  , 1                          , MPI_INT   , 0, 202+(proc*10), MPI_COMM_WORLD);
+            MPI_Send(  loc_Q_temp.mat , loc_Q_temp.m * loc_Q_temp.n, MPI_DOUBLE, 0, 200+(proc*10), MPI_COMM_WORLD);
+		} 
 
-		} else { //if i==0
+		if (proc == 0){ 
 			// collect Q from each processor that has one
-		    for (int j=1; j<rows_num; j++){
-	            MPI_Recv(Q_temp.block_mat[j*rows_num + j].m  , 1                                                                      , MPI_INT   , 201+((j)*10), MPI_COMM_WORLD, &status);
-	            MPI_Recv(Q_temp.block_mat[j*rows_num + j].n  , 1                                                                      , MPI_INT   , 202+((j)*10), MPI_COMM_WORLD, &status);
-	            MPI_Recv(Q_temp.block_mat[j*rows_num + j].mat, Q_temp.block_mat[j*rows_num + j].m * Q_temp.block_mat[j*rows_num + j].n, MPI_DOUBLE, 200+((j)*10), MPI_COMM_WORLD, &status);
-
-		    	Q_temp.block_mat[j*rows_num + j].m   = loc_Q_temp.m;
-            	Q_temp.block_mat[j*rows_num + j].n   = loc_Q_temp.n;
-            	Q_temp.block_mat[j*rows_num + j].mat = loc_Q_temp.mat;
-		    }
+			if (iter == 0){
+			    for (int j=1; j<rows_num; j++){
+					//fprintf(stderr, "Q Recv to proc*10=%d from 0\n", proc*10);
+		            MPI_Recv(&(Q_temp.block_mat[j*rows_num + j].m)  , 1                                                                      , MPI_INT   , j, 201+((j)*10), MPI_COMM_WORLD, &status);
+		            MPI_Recv(&(Q_temp.block_mat[j*rows_num + j].n)  , 1                                                                      , MPI_INT   , j, 202+((j)*10), MPI_COMM_WORLD, &status);
+		            MPI_Recv(  Q_temp.block_mat[j*rows_num + j].mat , Q_temp.block_mat[j*rows_num + j].m * Q_temp.block_mat[j*rows_num + j].n, MPI_DOUBLE, j, 200+((j)*10), MPI_COMM_WORLD, &status);
+		    	}
+			}
+			//if (iter == 1){
+			else {
+				int j=2;
+				//fprintf(stderr, "ITER=%d, Recv to 0 from %d,   tag =  %d \n", iter, j, 201+(proc*10));
+		        MPI_Recv(&(Q_temp.block_mat[1*rows_num + 1].m)  , 1                                                                      , MPI_INT   , j, 201+((j)*10), MPI_COMM_WORLD, &status);
+		        MPI_Recv(&(Q_temp.block_mat[1*rows_num + 1].n)  , 1                                                                      , MPI_INT   , j, 202+((j)*10), MPI_COMM_WORLD, &status);
+		        MPI_Recv(  Q_temp.block_mat[1*rows_num + 1].mat , Q_temp.block_mat[1*rows_num + 1].m * Q_temp.block_mat[1*rows_num + 1].n, MPI_DOUBLE, j, 200+((j)*10), MPI_COMM_WORLD, &status);
+			}
+			
+			Q_temp.block_mat[0].m   = loc_Q_temp.m;
+            Q_temp.block_mat[0].n   = loc_Q_temp.n;
+            Q_temp.block_mat[0].mat = loc_Q_temp.mat;
 		
 		    // to make matrix out of block matrix
             matrix Q_temp_matrix;
@@ -204,30 +217,30 @@ void tsqr(matrix* a, matrix* q, matrix* r){
             
             Q.n = Q_temp_matrix.n;
             free(Q.mat); //*
-    	    Q.mat = mat_c.mat;
-		
+			Q.mat = malloc(Q.m * Q.n * sizeof(double));
+    	    memcpy(Q.mat, mat_c.mat, Q.m * Q.n * sizeof(double));
+			free(mat_c.mat);
 	        rows_num = rows_num / 2;
 		}
-	    
-     
-    }
+    } // end of iter
+	
+	if (proc == 0){
 
-    
-    matrix q_temp;
-    q_temp.m = ((R.block_mat)[0]).m;
-    q_temp.n = ((R.block_mat)[0]).n;
-    q_temp.mat = malloc( (q_temp.m) * (q_temp.n) * sizeof(double));
-    
-    qr_decomp(
-        ((R.block_mat)[0]).m, 
-        ((R.block_mat)[0]).n,
-        ((R.block_mat)[0]).mat,
-        q_temp.mat,
-        r->mat
-    );
-
-    mat_mul(&Q, &q_temp, q);
-    free(q_temp.mat);
-
-    MPI_Finalize();
+        matrix q_temp;
+        q_temp.m = loc_R.m;
+        q_temp.n = loc_R.n;
+        q_temp.mat = malloc( (q_temp.m) * (q_temp.n) * sizeof(double));
+        
+        qr_decomp(
+            loc_R.m,
+            loc_R.n,
+            loc_R.mat,
+            q_temp.mat,
+            r->mat
+        );
+ 
+        mat_mul(&Q, &q_temp, q);
+        free(q_temp.mat);
+        free(Q.mat);
+	}
 }
