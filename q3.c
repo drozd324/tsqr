@@ -30,7 +30,7 @@ int main(){
     int m;
     int n;
     srand(1234);
-	int num_matrices = 200;
+	int num_matrices = 100;
 	int min_n = 10;
 	int max_size = 500;
 	double t0;
