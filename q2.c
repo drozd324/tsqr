@@ -16,7 +16,7 @@ int main(){
     matrix a;
     matrix q;
     matrix r;
-    int m = 20;
+    int m = 21;
     int n = 5;
 	if (rank == 0){
  
