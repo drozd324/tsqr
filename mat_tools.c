@@ -215,18 +215,12 @@ void comp_matrix(block_matrix* block_a, matrix* a){
     // iterating over blocks
     for (int i=0; i<(block_a->m); i++){
         for (int j=0; j<(block_a->n); j++){
-            //sub_rows = ((block_a->block_mat)[i*(block_a->n) + j])->m;
-            //sub_cols = ((block_a->block_mat)[i*(block_a->n) + j])->n;
-            
             sub_rows = ((block_a->block_mat)[i*(block_a->n) + j]).m;
             sub_cols = ((block_a->block_mat)[i*(block_a->n) + j]).n;
 	    
             // iterating over entries in block
-            //printf("sub_rows = %d\n", sub_rows);
-            //printf("sub_cols = %d\n", sub_cols);
             for (int k=0; k<sub_rows; k++){
                 for (int l=0; l<sub_cols; l++){
-		    //printf("k,l = %d. %d\n", k, l);
                     (a->mat)[(row_step + k)*(a->n) + (col_step + l)] = (((block_a->block_mat)[i*(block_a->n) + j]).mat)[k*sub_cols + l];
                 }
             }

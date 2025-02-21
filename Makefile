@@ -1,6 +1,6 @@
 CC    = gcc -O0
 MPICC = mpicc -O0
-DEBUG = -g -fsanitize=address -Wall -Wextra -lefence #$(" ") #
+DEBUG = $(" ") # -g -fsanitize=address -Wall -Wextra -lefence #$(" ") #
 LIBS  = -lm -lblas -llapacke -llapack  
 
 all: q2 q3
