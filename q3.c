@@ -30,8 +30,8 @@ int main(){
     int m;
     int n;
     srand(1234);
-	int num_matrices = 10;
-	int min_n = 50;
+	int num_matrices = 200;
+	int min_n = 10;
 	int max_size = 500;
 	double t0;
 	FILE *pf;
@@ -48,7 +48,7 @@ int main(){
 			fprintf(stderr, "matrix %d/%d \r", i, num_matrices);
 			
     		n = min_n + (rand() % max_size);
-	    	m = n*4 ; // makes sure the matrix will be "tall and skinny"
+	    	m = n*10 ; // makes sure the matrix will be "tall and skinny"
 
             a.mat = malloc(m * n * sizeof(double));
             a.m = m;
