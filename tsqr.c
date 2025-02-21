@@ -15,7 +15,7 @@
 
 /**
  * @brief Computes a QR factorisation of an input matrix struct a, using the TQSR 
- *        (Tall Skinny QR) method in a parallel way using 4 nodes.
+ *        (Tall Skinny QR) method in parallel using 4 nodes.
  * 
  * @param a Pointer to desired matrix struct to deconstruct
  * @param q Pointer to an empty matrix struct
@@ -72,14 +72,11 @@ void tsqr(matrix* a, matrix* q, matrix* r){
         loc_R.mat = malloc(loc_R.m * loc_R.n * sizeof(double));
         MPI_Recv(  loc_R.mat, loc_R.m * loc_R.n, MPI_DOUBLE, 0, 100+(proc*10), MPI_COMM_WORLD, &status);	
 
-
     } else {  // on proc 0
         loc_R.m   = ((R.block_mat)[0]).m; 
         loc_R.n   = ((R.block_mat)[0]).n;
         loc_R.mat = ((R.block_mat)[0]).mat;
-
     }
-
 
     // main iteration loop
     matrix loc_Q_temp;
@@ -166,22 +163,13 @@ void tsqr(matrix* a, matrix* q, matrix* r){
 		if (proc == 0){
 			
             // init Q to store blocks from local QR decomp
-            //block_matrix Q_temp;
             Q_temp.m = rows_num;
             Q_temp.n = rows_num;
             Q_temp.block_mat = malloc(rows_num * rows_num * sizeof(matrix)); //
-            //for (int i=0; i<rows_num; i++){ //row
-            //    for (int j=0; j<rows_num; j++){ //col
-            //        ((Q_temp.block_mat)[i*(Q_temp.n) + j]).mat = calloc((((R.block_mat)[i]).m) * (((R.block_mat)[i]).n), sizeof(double)); //
-            //        ((Q_temp.block_mat)[i*(Q_temp.n) + j]).m   = ((R.block_mat)[i]).m;
-            //        ((Q_temp.block_mat)[i*(Q_temp.n) + j]).n   = ((R.block_mat)[i]).n;
-            //    }
-            //}
 
 			// collect Q  from each processor that has one which becomes the diagonal part of Q_temp
 			if (iter == 0){
 			    for (int j=1; j<rows_num; j++){
-					//fprintf(stderr, "Q Recv to proc*10=%d from 0\n", proc*10);
 		            MPI_Recv(&(Q_temp.block_mat[j*rows_num + j].m) , 1                                                                      , MPI_INT   , j, 201+(j*10), MPI_COMM_WORLD, &status);
 		            MPI_Recv(&(Q_temp.block_mat[j*rows_num + j].n) , 1                                                                      , MPI_INT   , j, 202+(j*10), MPI_COMM_WORLD, &status);
 			        ((Q_temp.block_mat)[j*(Q_temp.n) + j]).mat = malloc((Q_temp.block_mat[j*rows_num + j].m) * (Q_temp.block_mat[j*rows_num + j].n) *  sizeof(double)); 
@@ -190,7 +178,6 @@ void tsqr(matrix* a, matrix* q, matrix* r){
 		    	}
 			} else { //if iter == 1
 				int j=2;
-				//fprintf(stderr, "ITER=%d, Recv to 0 from %d,   tag =  %d \n", iter, j, 201+(proc*10));
 		        MPI_Recv(&(Q_temp.block_mat[1*rows_num + 1].m) , 1                                                                      , MPI_INT   , j, 201+(j*10), MPI_COMM_WORLD, &status);
 		        MPI_Recv(&(Q_temp.block_mat[1*rows_num + 1].n) , 1                                                                      , MPI_INT   , j, 202+(j*10), MPI_COMM_WORLD, &status);
 			    ((Q_temp.block_mat)[1*(Q_temp.n) + 1]).mat = malloc((Q_temp.block_mat[1*rows_num + 1].m) * (Q_temp.block_mat[1*rows_num + 1].n) *  sizeof(double)); 
@@ -239,11 +226,10 @@ void tsqr(matrix* a, matrix* q, matrix* r){
     } // end of iter
 	
 	if (proc == 0){
-
         matrix q_temp;
         q_temp.m = loc_R.m;
         q_temp.n = loc_R.n;
-        q_temp.mat = malloc( (q_temp.m) * (q_temp.n) * sizeof(double));
+        q_temp.mat = calloc( (q_temp.m) * (q_temp.n),  sizeof(double));
         
         qr_decomp(
             loc_R.m,

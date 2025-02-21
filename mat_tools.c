@@ -103,11 +103,11 @@ void mat_mul(matrix* a, matrix* b, matrix* c){
     c->n = b->n;
 
     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-        a->m, b->n, a->n, 
+    a->m, b->n, a->n, 
 	alpha, 
-        a->mat, a->n,
-        b->mat, b->n, 
-        beta,
+    a->mat, a->n,
+    b->mat, b->n, 
+    beta,
 	c->mat, c->n);
 }
 

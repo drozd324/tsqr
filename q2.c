@@ -46,8 +46,6 @@ int main(){
  
     tsqr(&a, &q, &r); 
  	   	
-	//printf("------------------ Using serial QR --------------------\n");
-   	//qr_decomp(a.m, a.n, a.mat, q.mat, r.mat);
     
 	if (rank == 0){        
         matrix qr;
@@ -56,7 +54,6 @@ int main(){
         qr.n = n;
   
         mat_mul(&q, &r, &qr);
-  
   
         printf("printing input matrix a\n");
         print_matrix(a.m, a.n, a.mat, a.n);
@@ -74,12 +71,35 @@ int main(){
         print_matrix(qr.m, qr.n, qr.mat, qr.n);
         printf("\n");
   
+		printf("------------------ Using serial QR --------------------\n");
+		qr_decomp(a.m, a.n, a.mat, q.mat, r.mat);
+        mat_mul(&q, &r, &qr);
             
+        printf("printing input matrix a\n");
+        print_matrix(a.m, a.n, a.mat, a.n);
+        printf("\n");
+  
+        printf("printing output matrix q\n");
+        print_matrix(q.m, q.n, q.mat, q.n);
+        printf("\n");
+  
+        printf("printing output matrix r\n");
+        print_matrix(r.m, r.n, r.mat, r.n);
+        printf("\n");
+  
+        printf("printing output matrix qr\n");
+        print_matrix(qr.m, qr.n, qr.mat, qr.n);
+
+
+
+
+        printf("\n");
         free(a.mat);
         free(q.mat);
         free(r.mat);
         free(qr.mat);
-  
+
+
         /*
         double avg = 0;
         for (int i=0; i<m*n; i++){
